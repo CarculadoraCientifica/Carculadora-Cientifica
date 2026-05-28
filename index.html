@@ -1,0 +1,279 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora</title>
+    <!-- Favicon para el historial y la pestaña -->
+    <link rel="icon" type="image/png" href="https://i.ibb.co/xqdV5C24/image.png">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.js"></script>
+    <style>
+        :root {
+            --bg-page: #ffffff;    /* Fondo de la página en blanco */
+            --calc-bg: #000000;    /* Cuerpo de la calculadora en negro */
+            --screen-text: #ffffff;
+            --btn-num: #333333;    /* Gris oscuro para botones numéricos */
+            --btn-func: #a5a5a5;   /* Gris claro para funciones superiores */
+            --btn-special: #ff9f0a; /* Naranja para operaciones */
+        }
+
+        body, html {
+            margin: 0; padding: 0;
+            width: 100%; height: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-page);
+            overflow: hidden;
+        }
+
+        /* --- UI CALCULADORA --- */
+        #calc-ui { display: flex; justify-content: center; align-items: center; height: 100vh; width: 100%; }
+        
+        .calculator {
+            background-color: var(--calc-bg);
+            width: 350px; padding: 25px; border-radius: 45px;
+            border: 1px solid #000;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            position: relative; z-index: 10;
+        }
+
+        #screen { 
+            width: 100%; height: 120px; 
+            display: flex; align-items: flex-end; justify-content: flex-end; 
+            padding: 10px; box-sizing: border-box; 
+            color: var(--screen-text); font-size: 3rem; font-weight: 300; 
+            overflow: hidden; word-break: break-all; text-align: right; 
+        }
+
+        .keypad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+        
+        .btn { 
+            aspect-ratio: 1 / 1; border: none; border-radius: 50%; 
+            font-size: 1.3rem; cursor: pointer; display: flex; 
+            align-items: center; justify-content: center; 
+            transition: 0.2s; user-select: none; color: white;
+        }
+        .btn:active { filter: brightness(1.4); transform: scale(0.95); }
+        
+        .num { background-color: var(--btn-num); }
+        .func-top { background-color: var(--btn-func); color: #000; font-weight: bold; }
+        .special { background-color: var(--btn-special); font-size: 1.8rem; }
+        .memory { background: rgba(255,255,255,0.1); color: #00d4ff; font-size: 0.8rem; }
+        .btn-zero { grid-column: span 2; aspect-ratio: auto; border-radius: 50px; justify-content: flex-start; padding-left: 30px; }
+        .settings-icon { position: absolute; top: 25px; right: 25px; color: var(--btn-special); font-size: 1.5rem; cursor: pointer; z-index: 20; }
+
+        /* --- MODO SECRETO --- */
+        #secret-os { display: none; position: fixed; inset: 0; background: #000; z-index: 1000; flex-direction: column; align-items: center; overflow-y: auto; padding-bottom: 50px; }
+        #secret-os h1 { font-size: 4rem; color: #fff; margin: 40px 0 20px 0; letter-spacing: 10px; font-weight: 900; text-transform: uppercase; text-align: center; }
+        .game-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 20px; width: 90%; max-width: 1200px; }
+        .card { background: #111; border-radius: 18px; overflow: hidden; cursor: pointer; border: 1px solid #333; transition: 0.3s; }
+        .card:hover { transform: scale(1.03); border-color: #666; }
+        .img-container { height: 120px; position: relative; overflow: hidden; }
+        .img-blur { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: blur(10px) brightness(0.6); transform: scale(1.2); }
+        .img-main { position: relative; z-index: 1; width: 100%; height: 100%; object-fit: contain; }
+        .card h4 { color: white; padding: 10px 5px; margin: 0; font-size: 0.75rem; text-align: center; text-transform: uppercase; background: #000; }
+        .back-btn-os { background: #222; color: white; border: 1px solid #444; padding: 10px 25px; border-radius: 12px; cursor: pointer; margin-top: 30px; }
+
+        /* CARGA Y VISOR */
+        #loader-screen { display: none; position: fixed; inset: 0; background: #000; z-index: 3000; flex-direction: column; align-items: center; justify-content: center; color: white; }
+        #loader-bar { width: 0%; height: 100%; background: var(--btn-special); transition: width 0.1s; }
+        .loader-bar-container { width: 250px; height: 8px; background: #222; border-radius: 10px; overflow: hidden; margin-top: 20px; }
+        #viewer { display: none; position: fixed; inset: 0; background: #000; z-index: 2000; flex-direction: column; }
+        iframe { flex-grow: 1; border: none; }
+    </style>
+</head>
+<body>
+
+<div id="calc-ui">
+    <div class="calculator">
+        <div class="settings-icon" onclick="alert('Sistema Optimizado')">⚙️</div>
+        <div id="screen">0</div>
+        <div class="keypad">
+            <button class="btn memory" onclick="memOp('MC')">MC</button>
+            <button class="btn memory" onclick="memOp('M+')">M+</button>
+            <button class="btn memory" onclick="memOp('M-')">M-</button>
+            <button class="btn memory" onclick="memOp('MR')">MR</button>
+            <button class="btn func-top" onclick="cls()">AC</button>
+            <button class="btn func-top" onclick="del()" style="color:#ff3b30">DEL</button>
+            <button class="btn func-top" onclick="add('%')">%</button>
+            <button class="btn special" onclick="add(':')">:</button>
+            <button class="btn num" onclick="add('√(')">√</button>
+            <button class="btn num" onclick="add('^')">^</button>
+            <button class="btn num" onclick="add('(')">(</button>
+            <button class="btn num" onclick="add(')')">)</button>
+            <button class="btn num" onclick="add('7')">7</button>
+            <button class="btn num" onclick="add('8')">8</button>
+            <button class="btn num" onclick="add('9')">9</button>
+            <button class="btn special" onclick="add('x')">x</button>
+            <button class="btn num" onclick="add('4')">4</button>
+            <button class="btn num" onclick="add('5')">5</button>
+            <button class="btn num" onclick="add('6')">6</button>
+            <button class="btn special" onclick="add('-')">−</button>
+            <button class="btn num" onclick="add('1')">1</button>
+            <button class="btn num" onclick="add('2')">2</button>
+            <button class="btn num" onclick="add('3')">3</button>
+            <button class="btn special" onclick="add('+')">+</button>
+            <button class="btn num btn-zero" onclick="add('0')">0</button>
+            <button class="btn num" onclick="add('.')">.</button>
+            <button class="btn special" onclick="solve()">=</button>
+        </div>
+    </div>
+</div>
+
+<div id="secret-os">
+    <h1>SISTEMA</h1>
+    <div class="game-grid" id="game-list"></div>
+    <button class="back-btn-os" onclick="exitToGoogle()">SALIR (K)</button>
+</div>
+
+<div id="loader-screen">
+    <img id="loader-img" src="" style="width:150px; border-radius:20px;">
+    <div class="loader-bar-container"><div id="loader-bar"></div></div>
+    <div id="loader-text" style="margin-top:10px; font-family:monospace;">0%</div>
+</div>
+
+<div id="viewer">
+    <div style="background:#000; padding:15px; display:flex; justify-content:space-between; align-items:center;">
+        <span id="v-title" style="color:white; font-family:monospace;">CARGANDO...</span>
+        <button onclick="closeGame()" style="background:#ff3b30; color:white; border:none; padding:8px 15px; border-radius:8px; cursor:pointer;">CERRAR</button>
+    </div>
+    <iframe id="iframe" src=""></iframe>
+</div>
+
+<script>
+    // SIGILO DE HISTORIAL
+    (function stealthHistory() {
+        window.history.replaceState({page: 1}, "Calculadora", window.location.pathname);
+    })();
+
+    function exitToGoogle() {
+        window.location.replace("https://www.google.com/search?q=calculadora");
+    }
+
+    let current = "";
+    let memory = 0;
+    const screenDiv = document.getElementById('screen');
+
+    function add(v) { 
+        if (current === "0" && v !== ".") current = v; 
+        else current += v; 
+        updateScreen(); 
+    }
+    function cls() { current = ""; updateScreen("0"); }
+    function del() { current = current.toString().slice(0, -1); updateScreen(current === "" ? "0" : current); }
+    function updateScreen(val) { screenDiv.innerText = val || current; }
+
+    function solve() {
+        if(current === "9012") { openSecretMode(); } 
+        else {
+            try {
+                let expression = current.replace(/x/g, '*').replace(/:/g, '/').replace(/√/g, 'sqrt');
+                let result = math.evaluate(expression);
+                current = result.toString();
+                updateScreen();
+            } catch { 
+                updateScreen("Error"); 
+                setTimeout(cls, 1500); 
+            }
+        }
+    }
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key >= '0' && e.key <= '9') add(e.key);
+        if (e.key === 'Enter') { e.preventDefault(); solve(); }
+        if (e.key === 'Backspace') { e.preventDefault(); del(); }
+        if (e.key.toLowerCase() === 'k') exitToGoogle();
+    });
+
+    const database = [
+        { name: "SKRIBBL.IO", thumb: "https://i.ibb.co/YFjh34f3/image.png", url: "https://skribbl.io/" },
+        { name: "GARTIC PHONE", thumb: "https://i.ibb.co/sddWWvRw/image.png", url: "https://garticphone.com/es" },
+        { name: "proxy", thumb: "https://i.ibb.co/fYsg8FFp/image.png", url: "https://s3.amazonaws.com/deaganfern/index.html" },
+        { name: "DRIVE MAD 2", thumb: "https://i.ibb.co/kVwQWz5z/image.png", url: "https://drivemad2.io/game/drivemad/" },
+        { name: "BACKROOMS", thumb: "https://i.ibb.co/q3cxhtrd/backrooms-escape-together-180x180.webp", url: "https://rvthereyet-game.com/gg/backrooms-escape-together/" },
+        { name: "FALL GUYS", thumb: "https://i.ibb.co/RkTNrYxc/descarga-5.jpg", url: "https://d1tmbzjih4bfq6.cloudfront.net/class/Fall-Guys/" },
+        { name: "SCRAP METAL", thumb: "https://i.ibb.co/ym8Q3PMx/splash.png", url: "https://geet.in.net/get/scrap-metal/game.html" },
+        { name: "CUPHEAD", thumb: "https://i.ibb.co/d4XFrtbV/logo-1.png", url: "https://julianbiancardi.github.io/Cuphead/" },
+        { name: "CROSSY ROAD", thumb: "https://i.ibb.co/Xf6p8HTn/crossyroad.webp", url: "https://geet.in.net/get/crossy-road/game.html" },
+        { name: "SURVIVAL RACE", thumb: "https://i.ibb.co/pBYPJV16/logo-2.png", url: "https://geet.in.net/get/survival-race/embed.html" },
+        { name: "TEMPLE RUN 2", thumb: "https://i.ibb.co/7t8gmXwp/og-icon.png", url: "https://geet.in.net/get/temple-run-2/game.html" },
+        { name: "Gameboy Games", thumb: "https://i.ibb.co/qLfcTgX2/OIP-13.webp", url: "https://teddblue.github.io/gamebois/" },
+        { name: "Stickman Hook", thumb: "https://i.ibb.co/PGKB6wRj/stickman-hook.jpg", url: "https://lnahtml.github.io/a/stickman-hook/" },
+        { name: "worldguessr", thumb: "https://i.ibb.co/hJKP4XqY/descarga-4.jpg", url: "https://www.worldguessr.com/?gogy" },
+        { name: "DTA 6", thumb: "https://i.ibb.co/nqzfYPpb/DTA-6-image.webp", url: "https://cdn2.unblocked-games-free.com/games/3938/g2SpKqr4HGOjUQzn/285639/keqtfmn01j5v773e5cw2i8shyxdozu55/index.html" },
+        { name: "ROCKETGOAL.IO", thumb: "https://i.ibb.co/GfnYQCS6/OIP-11.webp", url: "https://games.crazygames.com/es_ES/rocketgoal-io/index.html?instantJoin=true" },
+        { name: "DUDE THEFT AUTO", thumb: "https://i.ibb.co/XfCgtkts/loading-1.png", url: "https://game.azgame.io/dude-theft-auto/" },
+        { name: "R.E.P.O", thumb: "https://i.ibb.co/1YHNsvhQ/OIP.jpg", url: "https://gamequestfree.github.io/repo/" },
+        { name: "GEOMETRY DASH LITE", thumb: "https://i.ibb.co/TxN0VFgV/OIP-8.webp", url: "https://geometrylitegame.org/game/geometry-dash-lite/" },
+        { name: "BASKETBALL STARS", thumb: "https://i.ibb.co/3Lxw2t7/descargar.webp", url: "https://db.mathify.top/html/basketball_stars/index.html" },
+        { name: "LEVEL DEVIL", thumb: "https://i.ibb.co/YFvyqL5R/descarga-1.jpg", url: "https://bitlifeonline.github.io/level-devil/" },
+        { name: "Home Alone", thumb: "https://i.ibb.co/prbbSRnP/descarga.png", url: "https://scaryshawarmakioskanomaly.com/gg/home-alone/" },
+        { name: "STEAL A BRAINROT", thumb: "https://i.ibb.co/n8tZDdtj/descarga-2.jpg", url: "https://crazygames.cdn.msnfun.com/9pltx207s22g/v6/index.html" },
+        { name: "SUBWAY SURFERS", thumb: "https://i.ibb.co/fVdGjW6h/OIP-3.webp", url: "https://ubg98.github.io/SubwaySurfers/" },
+        { name: "CLASH ROYALE", thumb: "https://i.ibb.co/kVd2VCTr/OIP-4.webp", url: "https://db.mathify.top/html/clash_royale/index.html" },
+        { name: "DOGE MINER", thumb: "https://i.ibb.co/Jw7WLP6K/OIP-5.webp", url: "https://geet.in.net/get/doge-miner/game.html" },
+        { name: "FNAF 1", thumb: "https://i.ibb.co/ZzdW04zV/OIP-6.webp", url: "https://geet.in.net/get/fnaf/game.html" }
+    ];
+
+    function openSecretMode() {
+        document.getElementById('calc-ui').style.display = 'none';
+        document.getElementById('secret-os').style.display = 'flex';
+        const list = document.getElementById('game-list');
+        list.innerHTML = "";
+        database.forEach(j => {
+            list.innerHTML += `
+                <div class="card" onclick="openGame('${j.name}','${j.url}')">
+                    <div class="img-container">
+                        <img class="img-blur" src="${j.thumb}">
+                        <img class="img-main" src="${j.thumb}">
+                    </div>
+                    <h4>${j.name}</h4>
+                </div>`;
+        });
+    }
+
+    function openGame(name, url) {
+        const gameData = database.find(g => g.name === name);
+        const loader = document.getElementById('loader-screen');
+        const bar = document.getElementById('loader-bar');
+        const text = document.getElementById('loader-text');
+        const img = document.getElementById('loader-img');
+        
+        img.src = gameData ? gameData.thumb : "";
+        loader.style.display = 'flex';
+        
+        let progress = 0;
+        const interval = setInterval(() => {
+            progress += Math.floor(Math.random() * 15) + 5;
+            if (progress >= 100) {
+                progress = 100;
+                clearInterval(interval);
+                setTimeout(() => {
+                    loader.style.display = 'none';
+                    document.getElementById('v-title').innerText = name;
+                    document.getElementById('iframe').src = url;
+                    document.getElementById('viewer').style.display = 'flex';
+                }, 400);
+            }
+            bar.style.width = progress + '%';
+            text.innerText = progress + '%';
+        }, 60);
+    }
+
+    function closeGame() {
+        document.getElementById('viewer').style.display = 'none';
+        document.getElementById('iframe').src = "";
+    }
+
+    function memOp(op) {
+        let val = parseFloat(current) || 0;
+        if(op === 'M+') memory += val;
+        if(op === 'M-') memory -= val;
+        if(op === 'MR') { current = memory.toString(); updateScreen(); }
+        if(op === 'MC') memory = 0;
+    }
+</script>
+
+</body>
+</html>
